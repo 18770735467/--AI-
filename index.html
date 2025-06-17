@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>老婆消消气</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom right, #ffcccb, #ff69b4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        .container {
+            background-color: #2e2e2e;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            width: fit-content;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #fff;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 80px);
+            grid-template-rows: repeat(8, 80px);
+            gap: 5px;
+            background-color: #1c1c1c;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .cell {
+            width: 80px;
+            height: 80px;
+            background-size: cover;
+            background-position: center;
+            border-radius: 8px;
+            position: relative;
+            transition: transform 0.2s ease, opacity 0.3s ease;
+        }
+
+        .cell.selected {
+            outline: 4px solid yellow;
+        }
+
+        .cell.removing {
+            animation: pop 0.5s forwards;
+        }
+
+        @keyframes pop {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(0.5);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        button {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #ff1493;
+        }
+
+        #score {
+            font-size: 20px;
+            color: white;
+            margin-right: 20px;
+        }
+
+        #tips {
+            margin-top: 10px;
+            color: #ffd700;
+            font-size: 16px;
+            min-height: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>老婆消消气</h1>
+    <div id="game-board"></div>
+    <div class="controls">
+        <button onclick="startGame()">新游戏</button>
+        <div id="score">分数: 0</div>
+    </div>
+    <div id="tips"></div>
+</div>
+
+<script>
+    const images = [
+        'https://bucket-test-xiaohongcai-001.oss-cn-beijing.aliyuncs.com/a.png',
+        'https://bucket-test-xiaohongcai-001.oss-cn-beijing.aliyuncs.com/b.png',
+        'https://bucket-test-xiaohongcai-001.oss-cn-beijing.aliyuncs.com/c.png',
+        'https://bucket-test-xiaohongcai-001.oss-cn-beijing.aliyuncs.com/d.png',
+        'https://bucket-test-xiaohongcai-001.oss-cn-beijing.aliyuncs.com/e.png'
+    ];
+
+    const tips = [
+        "你是我的小呀小苹果~",
+        "我对你爱爱爱不完！",
+        "你一笑，春天都开花了。",
+        "你的名字写起来麻烦，但念起来却那么甜。",
+        "我想把整个宇宙的温柔都给你。",
+        "今天天气预报说晴，原来是你眨了眨眼睛。",
+        "没有你的时候，我是迷路的小羊羔。",
+        "你是我唯一想要的软肋和盔甲。",
+        "如果世界末日来了，我希望最后看到的是你的眼睛。",
+        "你是我生命的全部意义。"
+    ];
+
+    let board = [];
+    const rows = 8;
+    const cols = 8;
+    let score = 0;
+    let selectedCell = null;
+
+    function startGame() {
+        score = 0;
+        updateScore();
+        clearTips();
+        initBoard();
+        renderBoard();
+    }
+
+    function initBoard() {
+        board = Array.from({length: rows}, () => Array.from({length: cols}, getRandomCell));
+    }
+
+    function getRandomCell() {
+        return {
+            type: Math.floor(Math.random() * images.length),
+            removing: false
+        };
+    }
+
+    function renderBoard() {
+        const gameBoard = document.getElementById('game-board');
+        gameBoard.innerHTML = '';
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (board[r][c].removing) cell.classList.add('removing');
+                cell.style.backgroundImage = `url(${images[board[r][c].type]})`;
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                cell.addEventListener('click', handleCellClick);
+                gameBoard.appendChild(cell);
+            }
+        }
+    }
+
+    function handleCellClick(e) {
+        const row = parseInt(e.currentTarget.dataset.row);
+        const col = parseInt(e.currentTarget.dataset.col);
+
+        if (!selectedCell) {
+            selectedCell = {row, col};
+            e.currentTarget.classList.add('selected');
+        } else {
+            const targetCell = {row, col};
+            if (isAdjacent(selectedCell, targetCell)) {
+                swapCells(selectedCell, targetCell);
+                if (hasMatches()) {
+                    removeMatches();
+                } else {
+                    swapCells(selectedCell, targetCell); // revert
+                }
+            }
+            selectedCell = null;
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+        }
+    }
+
+    function isAdjacent(c1, c2) {
+        return (Math.abs(c1.row - c2.row) + Math.abs(c1.col - c2.col)) === 1;
+    }
+
+    function swapCells(c1, c2) {
+        [board[c1.row][c1.col], board[c2.row][c2.col]] = [board[c2.row][c2.col], board[c1.row][c1.col]];
+        renderBoard();
+    }
+
+    function hasMatches() {
+        return findMatches().length > 0;
+    }
+
+    function findMatches() {
+        const matches = [];
+
+        // Horizontal
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols - 2; c++) {
+                if (board[r][c].type === board[r][c + 1].type && board[r][c].type === board[r][c + 2].type) {
+                    for (let i = 0; i < 3; i++) matches.push({row: r, col: c + i});
+                }
+            }
+        }
+
+        // Vertical
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < rows - 2; r++) {
+                if (board[r][c].type === board[r + 1][c].type && board[r][c].type === board[r + 2][c].type) {
+                    for (let i = 0; i < 3; i++) matches.push({row: r + i, col: c});
+                }
+            }
+        }
+
+        return matches;
+    }
+
+    async function removeMatches() {
+        const matches = findMatches();
+        if (matches.length === 0) return;
+
+        matches.forEach(({row, col}) => board[row][col].removing = true);
+        renderBoard();
+
+        await new Promise(r => setTimeout(r, 500));
+
+        score += matches.length * 10;
+        updateScore();
+        showTip();
+
+        matches.forEach(({row, col}) => {
+            board[row][col] = getRandomCell();
+            board[row][col].removing = false;
+        });
+
+        renderBoard();
+        await new Promise(r => setTimeout(r, 100));
+        await removeMatches();
+    }
+
+    function updateScore() {
+        document.getElementById('score').textContent = `分数: ${score}`;
+    }
+
+    function showTip() {
+        const randomTip = tips[Math.floor(Math.random() * tips.length)];
+        const tipsDiv = document.getElementById('tips');
+        tipsDiv.textContent = randomTip;
+    }
+
+    function clearTips() {
+        document.getElementById('tips').textContent = '';
+    }
+
+    startGame();
+</script>
+</body>
+</html>
